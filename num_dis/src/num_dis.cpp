@@ -24,3 +24,4 @@ void imageCallback(const sensor_msgs::ImagePtr& msg)
     cv::imshow("num_dis",img);
     cv::waitKey(1);
 }
+
