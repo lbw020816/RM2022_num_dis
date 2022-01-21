@@ -1,0 +1,632 @@
+1. analize swag and rotation
+2. measure tanslation between cam and rotor
+
+4. tune angle pid
+5. accelrate using cuda:
+    resize;
+    split channel;
+    mopho;
+
+struct CamParams
+{
+    int rows, cols;
+    float cx, cy, fx, fy, fps;
+    CamParams(int rows_, int cols_,
+                 float cx_,float cy_,
+                 float fx_, float fy_,
+                 float fps_):
+        rows(rows_),cols(cols_),
+        cx(cx_),cy(cy_),
+        fx(fx_),fy(fy_),
+        fps(fps_)
+    {}
+};
+//tf::Vector3 calc_XYZ(tfScalar yaw,tfScalar pitch,tfScalar row,float depth,CamParams &sp,cv::Point &pix_2d)
+//{
+//  tf::Transform trans;
+//  tf::Quaternion quat(yaw,pitch,row);
+//  trans.setRotation(quat);
+
+//  trans.setOrigin(tf::Vector3(0,0,0));
+//  tf::Vector3 tmpPt;
+//  tmpPt.m_floats[0]=depth;
+//  tmpPt.m_floats[1]=-(pix_2d.x-sp.cx)*depth/sp.fx;
+//  tmpPt.m_floats[2]=-(pix_2d.y-sp.cy)*depth/sp.fy;
+
+//  // to global point
+//  tmpPt=trans*tmpPt;
+//  return tmpPt;
+//}
+
+//    std::vector<cv::Point> point_db;
+//    std::vector<tf::Vector3> XYZ_db;
+//    point_db.push_back(cv::Point(654,585));
+//    CamParams cp(480,640,630.52,495.16,871.34,871.59,10);
+//    for(auto &pt:point_db)
+//    {
+//     XYZ_db.push_back(calc_XYZ(0,31.5/RAD2DEG,0,0.49,cp,pt));
+//    }
+//    printf("debug to see XYZ");
+
+	vector<Mat> imgChannels;
+	split(img_bgr, imgChannels);
+	Mat red_channel = imgChannels.at(2);
+	Mat blue_channel = imgChannels.at(0);
+	Mat mid_chn_img = red_channel - blue_channel;
+	threshold(mid_chn_img, img_binary, 70, 255, CV_THRESH_BINARY_INV);
+
+
+old calc_depth
+---------------------------------------------------------------------
+  float marker_width = (float)norm(res_marker.LEDs[0].center - res_marker.LEDs[1].center);
+  float marker_height = (res_marker.LEDs[0].width + res_marker.LEDs[1].width)*0.5f;
+  int type = 0;	///infantry
+  if ((marker_width / marker_height) > 4)
+  {
+    type = 1;	// hero
+  }
+
+  // Read points
+  vector<Point2f> imagePoints ;
+  imagePoints.push_back(res_marker.kpts[0]);
+  imagePoints.push_back(res_marker.kpts[1]);
+  imagePoints.push_back(res_marker.kpts[2]);
+  imagePoints.push_back(res_marker.kpts[3]);
+
+  vector<Point3f> objectPoints;
+
+  if(type == 1)//big armor
+  {
+    objectPoints.push_back(Point3f(-12.5, -3, 0.0));
+    objectPoints.push_back(Point3f(12.5, -3, 0.0));
+    objectPoints.push_back(Point3f(-12.5, 3, 0.0));
+    objectPoints.push_back(Point3f(12.5, 3, 0.0));
+  }
+
+  else//small or unknown
+  {
+    objectPoints.push_back(Point3f(-6.4, -2.6, 0.0));
+    objectPoints.push_back(Point3f(6.4, -2.6, 0.0));
+    objectPoints.push_back(Point3f(-6.4, 2.6, 0.0));
+    objectPoints.push_back(Point3f(6.4, 2.6, 0.0));
+  }
+
+
+  Mat rvec(3,1,cv::DataType<double>::type);
+  Mat tvec(3,1,cv::DataType<double>::type);
+
+  solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec);
+
+  vector<Point2f> projectedPoints;
+  projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, projectedPoints);
+  bool is_true_depth = true;
+  for(unsigned int i = 0; i < projectedPoints.size(); ++i)
+  {
+    if(imagePoints[i].x/projectedPoints[i].x>1.2 || imagePoints[i].x/projectedPoints[i].x<0.8 ||imagePoints[i].y/projectedPoints[i].y>1.2 || imagePoints[i].y/projectedPoints[i].y<0.8)
+    {
+      is_true_depth = false;
+      return -1;
+    }
+  }
+  if(is_true_depth)
+  {
+    Mat_<float> test;
+    tvec.convertTo(test, CV_32F);
+    res_marker.depth = test.at<float>(0, 2);
+
+  }else
+  {
+    printf("debug here!");
+  }
+ -------------------------------------------------------------------------------------------
+not in use
+---------------------------------------------------------------------------------------------
+   void get_gimbal(tfScalar yaw,tfScalar pitch,tfScalar row)
+  {
+    tf::Quaternion quat(yaw,pitch,row);//Quaternion：四元组 表示旋转
+    markSensor->got_trans=1;
+    markSensor->trans.setRotation(quat);
+    markSensor->trans.setOrigin(tf::Vector3(0,0,0));
+  }
+----------------------------------------------------------------------------------------------
+
+
+    /// Update GUI Window
+    /// way 1, a little bit slower
+    //         if(ifshow)
+    //         {
+    //             cv::imshow("detection result", img_to_show);
+    // //            if(!roi_to_show.empty())
+    // //                cv::imshow("track window", roi_to_show);
+    //             //    if(!markSensor.img_out.empty())
+    //             //      cv::imshow("feed to number", markSensor.img_out);
+    //             char key=cv::waitKey(1);
+    //             if(key=='q' ||key=='Q')
+    //             {
+    //                 //send SIGINT
+    //                 system("pkill roslaunch");
+    //             }
+
+    //         }
+    ///way 2, use another node to display output video
+
+    ---------------------------------------------------------------------------------------------
+    ///
+/// \brief HaarD::Detect_track   haar cascade method. It is obsolete.
+/// \param img
+/// \param X
+/// \param Y
+/// \param Z
+/// \param type
+/// \param pix_x
+/// \param pix_y
+/// \return
+///
+
+bool HaarD::Detect_track(const Mat & img, float & X, float & Y, float & Z, int &type, int &pix_x, int &pix_y)
+{
+  img.copyTo(MarkSensor::img_show);
+  if (status == 0)
+  {
+    vector<Rect> boards;
+    Mat frame_gray;
+    cvtColor(img, frame_gray, COLOR_BGR2GRAY);
+    //detector.detectMultiScale(frame_gray, boards, 1.2, 3, 0 | CASCADE_SCALE_IMAGE, Size(30, 30), Size(300, 300));
+    detector.detectMultiScale(frame_gray, boards, 1.2, 3);
+    if (boards.size() > 0)
+      boards = color_filter(img, boards, color_flag);
+    if (boards.size() > 0)
+    {
+      cout << "[debug] " << frame_num << ":" << " Detection find " << boards.size() << " objects" << endl;
+
+      if (boards.size() == 1)
+        location = boards[0];
+      else
+      {
+        //����Ǽ���ֵ����NMS�ǻ������area��
+        int max_area = boards[0].width * boards[0].height;
+        int max_index = 0;
+        for (int i = 1; i < boards.size(); i++)
+        {
+          int area = boards[i].width * boards[i].height;
+          if (area > max_index)
+          {
+            max_area = area;
+            max_index = i;
+          }
+        }
+        location = boards[max_index];
+      }
+      tracker.initTracking(img, location);
+      status = 1;
+      cout << "[debug] " << frame_num << ":" << " Start tracking" << endl;
+    }
+    else
+    {
+      printf("fail to detect!");
+      return -1;
+    }
+  }
+  else if (status == 1)
+  {
+    location = tracker.track(img);
+    limitRect(location, img.size());
+    if (location.area() == 0)
+    {
+      status = 0;
+      return -1;
+    }
+    if (frame_num % 10 == 0)
+    {
+      int factor = 3;
+      int newx = location.x + (1 - factor) * location.width / 2;
+      int newy = location.y + (1 - factor) * location.height / 2;
+      Rect loc = Rect(newx, newy, location.width * factor, location.height * factor);
+      limitRect(loc, img.size());
+      Mat roi = img(loc);
+      cvtColor(roi, roi, COLOR_BGR2GRAY);
+      vector<Rect> boards;
+      detector.detectMultiScale(roi, boards, 1.1, 3, 0 | CASCADE_SCALE_IMAGE, Size(20, 20), roi.size());
+      //detector.detectMultiScale(roi, boards, 1.2, 3);
+
+      if (boards.size() <= 0)
+      {
+        status = 0;
+        cout << "[debug] " << frame_num << ": " << "Tracking loss objects" << endl;
+        return -1;
+      }
+      else
+      {
+        if (boards.size() > 0)
+          boards = color_filter(img, boards, color_flag);
+        if (boards.size() > 0){
+          location = Rect(boards[0].x + loc.x, boards[0].y + loc.y, boards[0].width, boards[0].height);
+          tracker.initTracking(img, location);
+        }
+      }
+    }
+    pix_x=location.x+location.width*0.5;
+    pix_y=location.y+location.height*0.5;
+
+    rectangle(MarkSensor::img_show, location, Scalar(0, 128, 255), 2);
+
+  }
+  return 0;
+}
+/// judge if the armor is enemy
+bool HaarD::judge_color(Mat src) 
+{
+  int blue_count = 0;
+  int red_count = 0;
+  for(int i = 0; i < src.rows; i++)
+  {
+    for(int j = 0; j < src.cols; j++)
+    {
+      if( src.at<cv::Vec3b>(i, j)[0] > 17 && src.at<cv::Vec3b>(i, j)[0] < 50 &&
+          src.at<cv::Vec3b>(i, j)[1] > 15 && src.at<cv::Vec3b>(i, j)[1] < 56 &&
+          src.at<cv::Vec3b>(i, j)[2] > 100 && src.at<cv::Vec3b>(i, j)[2] < 250 )
+        red_count++;
+      else if(
+              src.at<cv::Vec3b>(i, j)[0] > 86 && src.at<cv::Vec3b>(i, j)[0] < 220 &&
+              src.at<cv::Vec3b>(i, j)[1] > 31 && src.at<cv::Vec3b>(i, j)[1] < 88 &&
+              src.at<cv::Vec3b>(i, j)[2] > 4 && src.at<cv::Vec3b>(i, j)[2] < 50 )
+        blue_count++;
+    }
+  }
+  cout << "[debug] " << "blue_count: " << blue_count << "\tred_count: " << red_count << endl;
+  if(red_count > blue_count)
+    return true;
+  else
+    return false;
+}
+/// filter all the boards detected by haar
+vector<Rect> HaarD::color_filter(Mat frame, vector<Rect> boards, bool color_flag)	//color filter
+{
+  vector<Rect> results;
+  for(int i = 0; i < boards.size(); i++)
+  {
+    Mat roi = frame(boards[i]);
+    if(roi.empty())
+      continue;
+    //imshow("roi", roi);
+    //waitKey(0);
+    bool flag = judge_color(roi);
+    if(flag == color_flag)
+      results.push_back(boards[i]);
+  }
+  //cout << results.size() << endl;
+  return results;
+}
+
+/--------------------------track top-----------------------------------/
+思路大概是找新出现和新消失的灯条，以此定位车的两端
+ //calc mass center by getting LED strip
+    //try to match strip in two frame,so we can get accur pos.
+    //get a _max_left and right in ROI
+    //and aim in middle
+    //may judge motion
+vector<RotRect>  new_LEDs(LEDs);
+    Point2i left_most,right_most;
+    left_most=Point(30000,30000);
+    /*
+    for(auto LED=new_LEDs.begin(); LED<new_LEDs.end(); LED++)
+    {
+        for(auto last_LED=last_LEDs.begin(); last_LED<last_LEDs.end(); last_LED++)
+        {
+            if(norm(LED->center-last_LED->center)<20)//TODO:modify this params
+            {
+                new_LEDs.erase(LED);
+                last_LEDs.erase(last_LED);
+            }
+        }
+    }
+    */
+    for(auto LED:new_LEDs)
+    {
+        if(LED.center.x<left_most.x)
+        {
+            left_most=LED.center;
+            continue;
+        }
+        if(LED.center.x>right_most.x)
+            right_most=LED.center;
+    }
+    for(auto LED:last_LEDs)
+    {
+        if(LED.center.x<left_most.x)
+        {
+            left_most=LED.center;
+            continue;
+        }
+        if(LED.center.x>right_most.x)
+            right_most=LED.center;
+    }
+    Point origin(left,top);
+    circle(img_show,left_most+origin,3,Scalar(255,20,255),3);
+    circle(img_show,right_most+origin,3,Scalar(20,255,255),3);
+    last_LEDs.clear();
+    last_LEDs.shrink_to_fit();
+    last_LEDs=LEDs;
+    -------------------------------------------------------------/
+
+
+
+/--------------------------------------------Dafu
+
+void Dafu_Detector::DetectDafuArmor(Mat &grayImage, Mat &dstImage,bool is_cw)
+{
+   /Point2f DafuCenterPitchYawError;               //大符中心坐标
+  Point2f ShootArmourPitchYawError;
+  Point2f PredcitShootArmourCenterPitchYawError;
+
+  IsDetectDafuCenter = 0;
+  int armor_cnt = 0;
+  int dafu_center_cnt = 0;
+
+  vector<vector<Point>> contours;   //每一组Point点集就是一个轮廓
+  vector<Vec4i> hierarcy;           //矩形集合，关系
+
+  findContours(grayImage, contours, hierarcy, RETR_TREE, CHAIN_APPROX_NONE); //找出所有轮廓 包括轮廓关系
+  if(contours.size()<=0) //llj: if can't find
+      return;
+  vector<RotatedRect> box(contours.size()); //定义最小外接矩形集合 ，用于存放装甲板的信息
+  vector<RotatedRect> box2(contours.size()); //定义最小外接矩形集合
+  vector <Point2f> DetectDafuCenter(contours.size());     //可能是大符中心的点
+  Point2f DetectArmourCenter[contours.size()];   //所有检测到的装甲板的中心坐标
+
+  //绘制轮廓图 没有子轮廓，但是有父轮廓的——装甲板的第一个特征
+  for (int i = 0; i < hierarcy.size(); i++)
+  {
+    if (hierarcy[i].val[2] == -1 && hierarcy[i].val[3] != -1)
+    {
+      //Scalar color = Scalar(0,0,255);
+      //drawContours(dstImage, contours, i, color, 1, 8, hierarcy);
+    }
+    else
+    {
+      box[i].center.x = -1;
+    }
+
+  }
+  //求最小外接矩形
+  Point2f rect[4];
+  for (int i = 0; i < contours.size(); i++)
+  {
+    if(contours[i].size()<=0) continue;
+    if (box[i].center.x != -1)
+    {
+      box[i] = minAreaRect(Mat(contours[i]));
+      box[i].points(rect);
+//-----ztl
+      //is_windMill_mode=1;
+     // is_cw=0;
+//-----ztl  //把最小外接矩形四个端点复制给rect数组
+      for (int j = 0; j < 4; j++)
+      {
+        //line(dstImage, rect[j], rect[(j + 1) % 4], Scalar(0, 0, 255), 1, 8);  //绘制最小外接矩形每条边
+      }
+    }
+  }
+
+
+  //根据长宽来筛选装甲板
+  for (int i = 0; i < contours.size(); i++)
+  {
+    if (box[i].center.x != -1)
+    {
+      float  real_dafu_armour_pixel_width = CvtRealLenghth2PixelLenghth(Dafu_armour_width_mm,8000);
+      float  real_dafu_armour_pixel_height = CvtRealLenghth2PixelLenghth(Dafu_armour_height_mm, 8000);
+      float detect_dafu_armour_pixel_height;
+      float detect_dafu_armour_pixel_width;
+
+
+      //长的为width，短的为height
+      if (box[i].size.width > box[i].size.height)
+      {
+        detect_dafu_armour_pixel_width = box[i].size.width;
+        detect_dafu_armour_pixel_height = box[i].size.height;
+      }
+      else
+      {
+        detect_dafu_armour_pixel_width = box[i].size.height;
+        detect_dafu_armour_pixel_height = box[i].size.width;
+      }
+
+      //cout<<"detect_dafu_armour_pixel_width"<<detect_dafu_armour_pixel_width<<endl;
+      //cout<<"detect_dafu_armour_pixel_height"<<detect_dafu_armour_pixel_height<<endl;
+
+      real_dafu_armour_pixel_width = 26; //摄像头标定后修改、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、
+      real_dafu_armour_pixel_height = 14;//摄像头标定后修改、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、
+
+
+      if (detect_dafu_armour_pixel_height < real_dafu_armour_pixel_height*(1 + max_dafu_transformation)
+          && detect_dafu_armour_pixel_height > real_dafu_armour_pixel_height*(1 - max_dafu_transformation))
+      {
+        if (detect_dafu_armour_pixel_width < real_dafu_armour_pixel_width*(1 + max_dafu_transformation)
+            && detect_dafu_armour_pixel_width > real_dafu_armour_pixel_width*(1 - max_dafu_transformation))
+        {
+          DetectArmourCenter[armor_cnt] = box[i].center;
+          armor_cnt++;
+        }
+        else
+        {
+          box[i].center.x = -1;
+        }
+      }
+      else
+      {
+        box[i].center.x = -1;
+      }
+
+    }
+  }
+
+  if (armor_cnt == 0)
+    return;
+
+  for (int i = 0; i < armor_cnt; i++)
+  {
+    circle(dstImage, Point(DetectArmourCenter[i].x, DetectArmourCenter[i].y), 10, (0, 0, 255), 4);
+  }
+
+
+
+  /*--------------------检测大符中心-----------------------*/
+
+
+  //找出 没有子轮廓，也没有父轮廓的中心，圆心在其中
+  for (int i = 0; i < hierarcy.size(); i++)
+  {
+    //绘制轮廓的最小外接圆
+    float radius;
+    if(contours[i].size()<=0) continue;
+    if (hierarcy[i].val[2] == -1 && hierarcy[i].val[3] == -1)
+    {
+
+      minEnclosingCircle(contours[i], DetectDafuCenter[i], radius);
+      //llj:DetectDafuCenter内存可能的大符中心坐标
+      if (radius >10 || radius<2)//如果大小不符合
+      {
+        DetectDafuCenter[i].x = -1;
+      }
+      else
+      {
+        dafu_center_cnt++;
+        //circle(dstImage, Point(DetectDafuCenter[i].x, DetectDafuCenter[i].y), radius, (0, 255, 255), 2);
+        //drawContours(dstImage, contours, i, Scalar(0, 255, 0), 1, 8, hierarcy);
+      }
+    }
+  }
+
+
+  //用装甲去匹配圆心
+  float real_armour_dafuCenter_pixel_length = 78;//摄像头标定后修改、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、、
+  for (int i = 0; i < contours.size(); i++)
+  {
+    if (DetectDafuCenter[i].x != -1)
+    {
+
+      for (int j = 0; j < armor_cnt; j++)
+      {
+        float pixel_length = GetPixelLength(DetectDafuCenter[i], DetectArmourCenter[j]);
+
+        float transformation;
+
+        if (armor_cnt <= 2) //llj:armor_cnt是此时亮起的叶片数量
+          transformation = 0.15;
+        else
+          transformation = 0.2;
+
+        if (pixel_length > real_armour_dafuCenter_pixel_length*(1 + transformation ) || pixel_length < real_armour_dafuCenter_pixel_length*(1 - transformation))
+        {
+          DetectDafuCenter[i].x = -1;
+        }
+
+      }
+    }
+  }
+
+
+
+  //画出圆心
+  //llj-TODO:此处无显式assert仅剩一个确定的圆心，或许可以优化？
+  for (int i = 0; i <contours.size(); i++)
+  {
+    if (DetectDafuCenter[i].x > 0)
+    {
+      circle(dstImage, Point(DetectDafuCenter[i].x, DetectDafuCenter[i].y), 5, (0, 255, 255), 2);
+      DafuCenter = DetectDafuCenter[i];
+      IsDetectDafuCenter++;
+    }
+
+  }
+
+
+
+
+
+  //找出需要打的装甲板是哪一块
+  Point2f MaxMeanCenter; //
+  double  MinMean = 255;
+  Mat ROI;
+  Mat means, stddev;
+  //meanStdDev(ROI, means, stddev);//计算src图片的均值和标准差
+  if (IsDetectDafuCenter == 1)
+//    if (hierarcy[i].val[2] == -1 && hierarcy[i].val[3] != -1)
+  {
+    if (armor_cnt == 1)//llj:如果是第一块亮起的叶片
+      ShootArmourCenter = DetectArmourCenter[0];//直接打
+    else//判断哪里打过哪里没有
+    {
+      for (int i = 0; i < armor_cnt; i++)
+      {
+        vector<Point> counters(2);//llj:类型是Point，我想杀了给这个数组起名的人
+        //counters[0] = DetectArmourCenter[i];
+        counters[0] = PointRotate(25, dstImage,DafuCenter,DetectArmourCenter[i]);//计算转动后的位置
+        counters[1] = DafuCenter;
+        Point2f rect[4];//四个顶点
+        RotatedRect rotate_rect = minAreaRect(counters);
+        //llj:下面的大概是个图像分割，大概圈出来当前这一片叶子
+        if (rotate_rect.size.width > rotate_rect.size.height)
+        {
+            rotate_rect.size.height = 8;
+            rotate_rect.size.width -=20;
+        }
+        else
+        {
+            rotate_rect.size.width = 8;
+            rotate_rect.size.height-=20;
+        }
+        rotate_rect.points(rect);
+
+        for (int j = 0; j < 4; j++)
+        {
+          line(dstImage, rect[j], rect[(j + 1) % 4], Scalar(0, 0, 255), 1, 8);  //绘制最小外接矩形每条边
+        }
+
+        ROI = GetROI(rotate_rect, grayImage);
+        //imshow("ROIII" + i, ROI);
+
+        meanStdDev(ROI, means, stddev);
+        if (means.at<double>(0) < MinMean)//要射击的目标是亮的部分最少的
+        {
+          MinMean = means.at<double>(0);
+          ShootArmourCenter = DetectArmourCenter[i];
+        }
+
+
+      }
+
+
+    }
+
+  }
+
+
+  ShootArmourCenterFilter=myFilter(ShootArmourCenter,20,5);
+  circle(dstImage, Point(ShootArmourCenterFilter.x, ShootArmourCenterFilter.y), 20, (0, 255, 255), 2);
+  circle(dstImage, Point(ShootArmourCenter.x, ShootArmourCenter.y), 20, (0, 255, 255), 2);
+
+  ShootArmourPitchYawError = CaculatePitchYawError(ShootArmourCenter.x, ShootArmourCenter.y);
+  DafuCenterPitchYawError=CaculatePitchYawError(DafuCenter.x, DafuCenter.y);
+
+  if(is_cw)
+  {
+    PredcitShootArmourCenter=predcit(27.5,dstImage);
+  }
+  else {
+    PredcitShootArmourCenter=predcit(-27.5,dstImage);
+
+  }
+  PredcitShootArmourCenterPitchYawError=CaculatePitchYawError(PredcitShootArmourCenter.x,PredcitShootArmourCenter.y);
+
+  float b = 0;
+
+
+ //char c=waitKey(1);
+
+    
+  
+ 
+}
+ 

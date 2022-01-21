@@ -1,0 +1,14 @@
+<launch>
+<param name="rcd_path" value="$(find windMill)/../../../../video_rcd/"/>
+<param name="dbg_img_path" value="$(find windMill)/../../../../dbg_img/"/>
+
+    <node pkg="windMill" type="windMill_node"  name="windMill"   respawn="true" />
+<!--    <node pkg="numPred" type="numPred_node.py" name="numPred" output="screen" />-->
+    <node pkg="mv_driver" type="mv_driver_node" name="mv_driver_node" respawn="true" />
+    <node pkg="serial_common" type="serial_common_node" name="serial_common_node" respawn="true">
+    <remap from="/write" to ="/write_angle"/>
+    </node>
+    <node pkg="ballistic" type="main.py" name="ballistic_node" respawn="true" output="screen"/>
+   <rosparam command="load" file="$(find windMill)/cfg/params.yaml" />
+
+</launch>

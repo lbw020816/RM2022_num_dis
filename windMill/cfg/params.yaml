@@ -1,0 +1,90 @@
+AlgoriParams:
+    is_enemy_red: True
+    pitch_bias: 30   #  zkx: 50 , wxc: 25
+    gray_threthold: 60
+    ch1_min_r: 14
+    ch1_max_r: 240
+    ch1_min_b: 190
+    ch1_max_b: 255
+    ch2_min: 40
+    ch2_max: 255
+    ch3_min_r: 200
+    ch3_max_r: 255
+    ch3_min_b: 40
+    ch3_max_b: 200
+
+CameraParams_1_small:
+    rows: 480
+    cols: 640
+    fps: 400
+    cx: 343.996
+    cy: 181.230
+    fx: 858.4395
+    fy: 858.3275
+    distcoef1: -0.0687
+    distcoef2: 0.1047
+
+CameraParams_2_small:
+    rows: 480
+    cols: 640
+    fps: 400
+    cx: 307.764
+    cy: 221.537
+    fx: 865.4454
+    fy: 865.9519
+    distcoef1: -0.1024
+    distcoef2: 0.1279
+
+CameraParams_3_small:
+    rows: 480
+    cols: 640
+    fps: 400
+    cx: 311.785
+    cy: 209.390
+    fx: 877.7847
+    fy: 877.5790
+    distcoef1: -0.0844
+    distcoef2: 0.0480
+
+CameraParams_4_small:
+    rows: 480
+    cols: 640
+    fps: 400
+    cx: 321.117
+    cy: 268.663
+    fx: 877.5995
+    fy: 876.6122
+    distcoef1: -0.0888
+    distcoef2: 0.0502
+
+MarkerParams:
+    contours_lengtch1_min:  5    #LED contour size
+    contours_lengtch1_max:  270
+    LED_ratio_min:  2        # chang div kuan
+    LED_ratio_max:  20
+    LED_widtch1_min:  7        # width in pixel
+    LED_widtch1_max:  100
+    LED_diff: 0.2
+    marker_parallel_angle:  5     # angle between 2 led
+    marker_vertical_angle:  10     # no use
+    marker_direction_angle:  40    # angle between c2c and horizon
+    marker_ratio_min:  0.8    #  width / height
+    marker_ratio_max:  7
+    marker_size_min:  10    #  c2c distance
+    marker_size_max:  220
+    LED_realheight: 0.048
+    
+
+
+if_calc_depth: True
+if_predict: False
+if_analyze_motion: False
+if_get_angle: True 
+
+is_record: False
+ifshow: True
+cam_idx: 2
+fps_mode: 0
+exp_time: 2000
+rcd_path: "/home/nuaa/"
+#llj:change paramaters in this file, don't need to cmake again
