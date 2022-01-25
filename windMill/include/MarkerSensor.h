@@ -105,6 +105,7 @@ public:
     Rect bbox;
     float decision_points;
     float   old_depth, depth;
+    int num=0;
     MarkerType armor_type;
 };
 
@@ -166,7 +167,7 @@ public :
     SensorStatus status= STATUS_DETECTING;
     Marker marker;
 	Mat img_gray, img_bgr, img_hsv, img_h, led_mask,img_out;
-    static Mat img_show, ROI_bgr, coordinate;
+    static Mat img_show, ROI_bgr, coordinate,NUM_bgr;
     Point2f new_target, target;
 
     

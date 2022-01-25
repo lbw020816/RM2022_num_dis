@@ -21,7 +21,7 @@
 
 using namespace std;
 using namespace cv;
-Mat img_src,img_to_show,roi_to_show,binary_to_show, coordinate_to_show;
+Mat img_src,img_to_show,roi_to_show,binary_to_show, coordinate_to_show,num_to_show;
 /// output
 int pix_x, pix_y;
 int armorNum=6;
@@ -116,6 +116,7 @@ class ImageConverter
   image_transport::Publisher coordinate_pub_;
   image_transport::Publisher binary_image_pub_;
   image_transport::Publisher show_image_pub_;
+  image_transport::Publisher num_image_pub_;
 
   ros::Publisher serial_pub;
   ros::Subscriber numpred_sub;
@@ -162,6 +163,7 @@ public:
 
     // publishers
     roi_image_pub_ = it_.advertise("/armor_detector/armor_roi", 1);
+    num_image_pub_ = it_.advertise("/armor_detector/armor_num", 1);
     binary_image_pub_ = it_.advertise("/armor_detector/binary_img", 1);
     show_image_pub_ = it_.advertise("/armor_detector/output_img", 1);
     coordinate_pub_ = it_.advertise("/armor_detector/coordinate", 1);
@@ -305,6 +307,7 @@ public:
         /// for visualization
         img_to_show=markSensor->img_show;
         roi_to_show=markSensor->ROI_bgr;
+        num_to_show=markSensor->NUM_bgr;
         coordinate_to_show=markSensor->coordinate;
 
     }
@@ -330,8 +333,10 @@ public:
           // imshow("roi_to_show",roi_to_show);
           //waitKey(1);
         sensor_msgs::ImagePtr roi_img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", roi_to_show).toImageMsg();
+        sensor_msgs::ImagePtr num_img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", num_to_show).toImageMsg();
         roi_img_msg->header.stamp = ros::Time::now();
         roi_image_pub_.publish(roi_img_msg);
+        num_image_pub_.publish(num_img_msg);
         }
 
         if(!coordinate_to_show.empty())

@@ -1,7 +1,7 @@
 #include "MarkerSensor.h"
 
 //#include "utils.h"
-Mat MarkSensor::img_show, MarkSensor::ROI_bgr, MarkSensor::coordinate;
+Mat MarkSensor::img_show, MarkSensor::ROI_bgr, MarkSensor::coordinate,MarkSensor::NUM_bgr;
 using namespace cv;
 using namespace std;
 
@@ -108,23 +108,20 @@ int MarkSensor::bgr2binary(Mat &srcImg, Mat &img_out,int method)
 {
   if (srcImg.empty())
     return -1;
-  if(method==1)
-  {
-    //method 1: split channels and substract
-    vector<Mat> imgChannels;
-    split(srcImg, imgChannels);
-    Mat red_channel = imgChannels.at(2);
-    Mat blue_channel = imgChannels.at(0);
-    Mat mid_chn_img;
-    if(ap.is_red)
-    {
-        mid_chn_img = red_channel - blue_channel;
+  if(method==1) {
+      //method 1: split channels and substract
+      vector <Mat> imgChannels;
+      split(srcImg, imgChannels);
+      Mat red_channel = imgChannels.at(2);
+      Mat blue_channel = imgChannels.at(0);
+      Mat mid_chn_img;
+      if (ap.is_red) {
+          mid_chn_img = red_channel - blue_channel;
 
-    }else
-    {
-        mid_chn_img = blue_channel-red_channel;
-    }
-    threshold(mid_chn_img, img_out, 60, 255, THRESH_BINARY);
+      } else {
+          mid_chn_img = blue_channel - red_channel;
+      }
+      threshold(mid_chn_img, img_out, 60, 255, THRESH_BINARY);
   }
   else if(method==2)
   {
@@ -435,6 +432,7 @@ int MarkSensor::GetLEDMarker(cv::Mat &roi_mask, Marker &res_marker)
   res_marker.old_depth=0;
   res_marker.depth=0;
 
+
   return 0;
 }
 ///
@@ -486,7 +484,7 @@ int MarkSensor::TrackLEDMarker(const Mat &img, Marker &res_marker)
   Rect ROI(left, top, (right - left), (bot - top));
   /// Get Mask
   ROI_bgr = img(ROI).clone();
-
+  NUM_bgr = img(ROI).clone();
   cv::Mat ROI_led_mask;
   ///check if empty
   if (ROI_bgr.empty())
