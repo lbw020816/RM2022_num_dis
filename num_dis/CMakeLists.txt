@@ -9,6 +9,7 @@ project(num_dis)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
+  image_transport
   roscpp
   sensor_msgs
   std_msgs
